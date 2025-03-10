@@ -8,7 +8,7 @@
 <%@page import="dto.UserDTO" %>
 <%
     UserDTO user = (UserDTO) session.getAttribute("user");
-    if (user == null || !"FD".equals(user.getRole())) {
+    if (user == null || !"Founder".equals(user.getRole())) {
         response.sendRedirect("dashboard.jsp");
         return;
     }

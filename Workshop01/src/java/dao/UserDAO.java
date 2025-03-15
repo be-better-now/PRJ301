@@ -122,4 +122,9 @@ public class UserDAO implements IDAO<UserDTO, String> {
     public List<UserDTO> searchByName(String searchTerm) {
         return null;
     }
+    
+    @Override
+    public List<UserDTO> getProjectsByUser(String username) {
+        return null;
+    }
 }

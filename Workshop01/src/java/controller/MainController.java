@@ -38,30 +38,31 @@ public class MainController extends HttpServlet {
      * @throws ServletException if a servlet-specific error occurs
      * @throws IOException if an I/O error occurs
      */
-    
     private static final String LOGIN_PAGE = "login.jsp";
     private static final String DASHBOARD_PAGE = "dashboard.jsp";
 
     private final UserDAO userDAO = new UserDAO();
     private final ProjectDAO projectDAO = new ProjectDAO();
-    
-    
+
     private String processLogin(HttpServletRequest request, HttpServletResponse response)
-        throws ServletException, IOException {
-    String url = LOGIN_PAGE;
-    String username = request.getParameter("txtUsername");
-    String password = request.getParameter("txtPassword");
-    
+            throws ServletException, IOException {
+        String url = LOGIN_PAGE;
+        String username = request.getParameter("txtUsername");
+        String password = request.getParameter("txtPassword");
+
         if (AuthUtils.isValidLogin(username, password)) {
             url = "dashboard.jsp";
             UserDTO user = AuthUtils.getUser(username);
+            HttpSession session = request.getSession();
             request.getSession().setAttribute("user", user);
+            // Gọi luôn hàm lấy project sau khi đăng nhập         
+            return processViewProjects(request, response); //test
         } else {
             request.setAttribute("message", "Incorrect Username or Password");
             url = "login.jsp";
         }
-    return url;
-}
+        return url;
+    }
 
     private String processLogout(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -73,47 +74,50 @@ public class MainController extends HttpServlet {
     private String processViewProjects(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         HttpSession session = request.getSession();
-        if (AuthUtils.isLoggedIn(session)) {
-            List<ProjectDTO> projects = projectDAO.readAll();
-            request.setAttribute("projects", projects);
+        UserDTO user = (UserDTO) session.getAttribute("user");
+
+        if (user == null) {
+            return LOGIN_PAGE; // Nếu chưa đăng nhập, đá về login
+        }
+        // Lấy project theo user hiện tại
+        List<ProjectDTO> projects = projectDAO.getProjectsByUser(user.getUsername());
+        request.setAttribute("projects", projects);
+        request.getRequestDispatcher("dashboard.jsp").forward(request, response);
+        return DASHBOARD_PAGE;
+    }
+
+    private String createProject(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        String name = request.getParameter("project_name");
+        String description = request.getParameter("description");
+        String status = request.getParameter("status");
+        String launchDateStr = request.getParameter("estimated_launch");
+        
+        UserDTO user = (UserDTO) request.getSession().getAttribute("user");
+        if (user == null || !"Founder".equals(user.getRole())) {
+            request.setAttribute("message", "You do not have permission to create a project.");
             return DASHBOARD_PAGE;
         }
-        return LOGIN_PAGE;
-    }
-
-    protected String createProject(HttpServletRequest request, HttpServletResponse response) 
-        throws ServletException, IOException {
-    String name = request.getParameter("name");
-    String description = request.getParameter("description");
-    String status = request.getParameter("status");
-    String launchDateStr = request.getParameter("launchDate");
-
-    UserDTO user = (UserDTO) request.getSession().getAttribute("user");
-
-    if (user == null || !"Founder".equals(user.getRole())) {
-        return "You do not have permission to create a project.";
-    }
-
-    try {
-        Date launchDate = Date.valueOf(launchDateStr);
-        ProjectDTO project = new ProjectDTO(0, name, description, status, launchDate, user.getUsername());
-
-        ProjectDAO projectDAO = new ProjectDAO();
-        boolean success = projectDAO.create(project);
-
-        if (success) {
-            response.sendRedirect("MainController?action=dashboard");
-            return "Project created successfully!";
-        } else {
-            return "Failed to create project.";
+        
+        try {
+            Date launchDate = Date.valueOf(launchDateStr);
+            ProjectDTO project = new ProjectDTO(0, name, description, status, launchDate, user.getUsername());
+            boolean success = projectDAO.create(project);
+            
+            if (success) {
+                return processViewProjects(request, response);
+            } else {
+                request.setAttribute("message", "Failed to create project.");
+                return "createProject.jsp";
+            }
+        } catch (IllegalArgumentException e) {
+            request.setAttribute("message", "Invalid date format.");
+            return "createProject.jsp";
         }
-    } catch (IllegalArgumentException e) {
-        return "Invalid date format.";
     }
-}
-    
+
     private String processSearchProject(HttpServletRequest request, HttpServletResponse response)
-        throws ServletException, IOException {
+            throws ServletException, IOException {
         String url = "dashboard.jsp"; // Mặc định về dashboard
         HttpSession session = request.getSession();
         UserDTO user = AuthUtils.getUser(session);
@@ -124,13 +128,15 @@ public class MainController extends HttpServlet {
         }
 
         String searchTerm = request.getParameter("searchTerm");
-        if (searchTerm == null) searchTerm = "";
+        if (searchTerm == null) {
+            searchTerm = "";
+        }
 
         List<ProjectDTO> projects = projectDAO.searchByName(searchTerm);
         request.setAttribute("projects", projects);
         request.setAttribute("searchTerm", searchTerm);
         return url;
-}
+    }
 
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -164,8 +170,6 @@ public class MainController extends HttpServlet {
             rd.forward(request, response);
         }
     }
-
-    
 
     // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**

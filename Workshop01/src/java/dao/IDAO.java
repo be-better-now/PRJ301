@@ -13,6 +13,7 @@ package dao;
 import java.util.List;
 
 public interface IDAO<T, K> {
+    List<T> getProjectsByUser(String username);
     boolean create(T entity);
     List<T> readAll();
     T readById(K id);

@@ -57,7 +57,6 @@
                         <th>Total Marks</th>
                         <th>Duration (mins)</th>
                         <th>Take Exam</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -70,9 +69,6 @@
                         <td><%= exam.getDuration()%></td>
                         <td>
                             <a href="MainController?action=takeExam&examId=<%= exam.getExamId()%>">Take</a>
-                        </td>
-                        <td>
-                            <a href="MainController?action=takeExam&examId=<%= exam.getExamId()%>">Edit</a>
                         </td>
                     </tr>
                     <%  }

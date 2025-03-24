@@ -49,9 +49,9 @@ public class ExamDAO {
     public boolean createExam(ExamDTO exam) throws SQLException, ClassNotFoundException {
         boolean check = false;
         String sql = "INSERT INTO tblExams(exam_title, subject, category_id, total_marks, duration, created_by) VALUES (?, ?, ?, ?, ?, ?)";
-        
+
         try (Connection conn = DBUtils.getConnection();
-             PreparedStatement stm = conn.prepareStatement(sql)) {
+                PreparedStatement stm = conn.prepareStatement(sql)) {
             stm.setString(1, exam.getExamTitle());
             stm.setString(2, exam.getSubject());
             stm.setInt(3, exam.getCategoryId());
@@ -62,6 +62,35 @@ public class ExamDAO {
             check = stm.executeUpdate() > 0;
         }
         return check;
+    }
+
+    public List<ExamDTO> getAllExams() throws SQLException, ClassNotFoundException {
+        List<ExamDTO> list = new ArrayList<>();
+        String sql = "SELECT exam_id, exam_title, subject, category_id, total_marks, duration, created_by FROM tblExams";
+        try (Connection conn = DBUtils.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(new ExamDTO(rs.getInt("exam_id"), rs.getString("exam_title"), rs.getString("subject"),
+                        rs.getInt("category_id"), rs.getInt("total_marks"), rs.getInt("duration"), rs.getString("created_by")));
+            }
+        }
+        return list;
+    }
+
+    public ExamDTO getExamById(int examId) throws SQLException, ClassNotFoundException {
+        String sql = "SELECT exam_id, exam_title, subject, category_id, total_marks, duration, created_by FROM tblExams WHERE exam_id = ?";
+        try (Connection conn = DBUtils.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, examId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new ExamDTO(rs.getInt("exam_id"), rs.getString("exam_title"), rs.getString("subject"),
+                            rs.getInt("category_id"), rs.getInt("total_marks"), rs.getInt("duration"), rs.getString("created_by"));
+                }
+            }
+        }
+        return null;
     }
 
     public static boolean updateExam(ExamDTO exam) throws SQLException, ClassNotFoundException {

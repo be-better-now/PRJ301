@@ -48,7 +48,7 @@ public class ProjectDAO implements IDAO<ProjectDTO, Integer> {
 
     @Override
     public boolean create(ProjectDTO project) {
-        String sql = "INSERT INTO tblStartupProjects (project_name, description, status, estimated_launch, username) VALUES (?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO tblStartupProjects (project_name, description, status, estimated_launch, founder_username) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DBUtils.getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, project.getProjectName());
@@ -153,7 +153,7 @@ public class ProjectDAO implements IDAO<ProjectDTO, Integer> {
     @Override
     public List<ProjectDTO> searchByName(String searchTerm) {
         List<ProjectDTO> projects = new ArrayList<>();
-        String sql = "SELECT * FROM tblProjects WHERE projectName LIKE ?";
+        String sql = "SELECT * FROM tblStartupProjects WHERE project_name LIKE ?";
         try (Connection conn = DBUtils.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, "%" + searchTerm + "%");
@@ -161,13 +161,15 @@ public class ProjectDAO implements IDAO<ProjectDTO, Integer> {
             while (rs.next()) {
                 projects.add(new ProjectDTO(
                         rs.getInt("project_id"),
-                        rs.getString("projectName"),
+                        rs.getString("project_name"),
                         rs.getString("description"),
                         rs.getString("status"),
-                        rs.getDate("launchDate")
+                        rs.getDate("estimated_launch"),
+                        rs.getString("founder_username") // Thêm founder_username
                 ));
             }
         } catch (SQLException | ClassNotFoundException e) {
+            System.out.println("Search Error: " + e.getMessage());
             e.printStackTrace();
         }
         return projects;

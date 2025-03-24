@@ -7,10 +7,12 @@ package controller;
 
 import dao.CategoryDAO;
 import dao.ExamDAO;
+import dao.ExamResultDAO;
 import dao.QuestionDAO;
 import dao.UserDAO;
 import dto.CategoryDTO;
 import dto.ExamDTO;
+import dto.ExamResultDTO;
 import dto.QuestionDTO;
 import dto.UserDTO;
 import java.io.IOException;
@@ -30,6 +32,11 @@ import javax.servlet.http.HttpSession;
  */
 @WebServlet(name = "MainController", urlPatterns = {"/MainController"})
 public class MainController extends HttpServlet {
+
+    private static final String LOGIN = "login.jsp";
+    private static final String TAKE_EXAM = "takeExam.jsp";
+    private static final String EXAM_RESULT = "examResult.jsp";
+    private static final String ADD_QUESTION = "addQuestion.jsp";
 
     /**
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
@@ -59,12 +66,22 @@ public class MainController extends HttpServlet {
                 url = processViewExams(request);
             } else if (action.equals("createExam")) {
                 url = processCreateExam(request);
+            } else if (action.equals("takeExam")) {
+                url = processTakeExam(request);
+            } else if (action.equals("startExam")) {
+                url = processStartExam(request);
+            } else if (action.equals("submitExam")) {
+                url = processSubmitExam(request);
+            } else if (action.equals("viewResults")) {
+                url = processViewResults(request);
+            } else if (action.equals("addQuestion")) {
+                url = processAddQuestion(request);
             }
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            request.getRequestDispatcher(url).forward(request, response);
         }
-
-        request.getRequestDispatcher(url).forward(request, response);
     }
 
     private String processLogin(HttpServletRequest request) throws SQLException, ClassNotFoundException {
@@ -143,68 +160,130 @@ public class MainController extends HttpServlet {
             request.setAttribute("ERROR_MESSAGE", "Error: " + e.getMessage());
         }
         return "createExam.jsp";
-
     }
 
-    private String processUpdateExam(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int examId = Integer.parseInt(request.getParameter("examId"));
-        String title = request.getParameter("examTitle");
-        String subject = request.getParameter("subject");
-        int categoryId = Integer.parseInt(request.getParameter("categoryId"));
-        int totalMarks = Integer.parseInt(request.getParameter("totalMarks"));
-        int duration = Integer.parseInt(request.getParameter("duration"));
-
-        ExamDTO exam = new ExamDTO(examId, title, subject, categoryId, totalMarks, duration, "");
-        ExamDAO.updateExam(exam);
-        return "MainController?action=listExams";
+    private String processTakeExam(HttpServletRequest request) {
+        try {
+            HttpSession session = request.getSession();
+            UserDTO user = (UserDTO) session.getAttribute("USER");
+            if (user == null || !"Student".equals(user.getRole())) {
+                return LOGIN;
+            }
+            ExamDAO examDAO = new ExamDAO();
+            List<ExamDTO> examList = examDAO.getAllExams();
+            request.setAttribute("EXAM_LIST", examList);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return TAKE_EXAM;
     }
 
-    private String processDeleteExam(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int examId = Integer.parseInt(request.getParameter("examId"));
-        ExamDAO.deleteExam(examId);
-        return "MainController?action=listExams";
+    private String processStartExam(HttpServletRequest request) {
+        try {
+            HttpSession session = request.getSession();
+            UserDTO user = (UserDTO) session.getAttribute("USER");
+            if (user == null || !"Student".equals(user.getRole())) {
+                return LOGIN;
+            }
+            String examId = request.getParameter("examId");
+            ExamDAO examDAO = new ExamDAO();
+            QuestionDAO questionDAO = new QuestionDAO();
+            ExamDTO selectedExam = examDAO.getExamById(Integer.parseInt(examId));
+            List<QuestionDTO> questionList = questionDAO.getQuestionsByExamId(Integer.parseInt(examId));
+            request.setAttribute("SELECTED_EXAM", selectedExam);
+            request.setAttribute("QUESTION_LIST", questionList);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return TAKE_EXAM;
     }
 
-    private String processListQuestions(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int examId = Integer.parseInt(request.getParameter("examId"));
-        List<QuestionDTO> questions = QuestionDAO.getQuestionsByExamId(examId);
-        request.setAttribute("QUESTIONS", questions);
-        return "questionList.jsp";
+    private String processSubmitExam(HttpServletRequest request) {
+        try {
+            HttpSession session = request.getSession();
+            UserDTO user = (UserDTO) session.getAttribute("USER");
+            if (user == null || !"Student".equals(user.getRole())) {
+                return LOGIN;
+            }
+            String examId = request.getParameter("examId");
+            ExamDAO examDAO = new ExamDAO();
+            QuestionDAO questionDAO = new QuestionDAO();
+            List<QuestionDTO> questionList = questionDAO.getQuestionsByExamId(Integer.parseInt(examId));
+            int totalMarks = examDAO.getExamById(Integer.parseInt(examId)).getTotalMarks();
+            int score = calculateScore(request, questionList, totalMarks);
+            ExamResultDAO resultDAO = new ExamResultDAO();
+            resultDAO.saveExamResult(new ExamResultDTO(0, Integer.parseInt(examId), user.getUsername(), score));
+            request.setAttribute("SCORE", score);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return EXAM_RESULT;
     }
 
-    private String processCreateQuestion(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int examId = Integer.parseInt(request.getParameter("examId"));
-        String questionText = request.getParameter("questionText");
-        String optionA = request.getParameter("optionA");
-        String optionB = request.getParameter("optionB");
-        String optionC = request.getParameter("optionC");
-        String optionD = request.getParameter("optionD");
-        String correctOption = request.getParameter("correctOption");
-        String createdBy = request.getParameter("createdBy");
-
-        QuestionDTO question = new QuestionDTO(0, examId, questionText, optionA, optionB, optionC, optionD, correctOption, createdBy);
-        QuestionDAO.createQuestion(question);
-        return "MainController?action=listQuestions&examId=" + examId;
+    private String processViewResults(HttpServletRequest request) {
+        try {
+            HttpSession session = request.getSession();
+            UserDTO user = (UserDTO) session.getAttribute("USER");
+            if (user == null || !"Student".equals(user.getRole())) {
+                return LOGIN;
+            }
+            ExamResultDAO resultDAO = new ExamResultDAO();
+            List<ExamResultDTO> resultList = resultDAO.getResultsByStudent(user.getUsername());
+            request.setAttribute("RESULT_LIST", resultList);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return EXAM_RESULT;
     }
 
-    private String processUpdateQuestion(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int questionId = Integer.parseInt(request.getParameter("questionId"));
-        String questionText = request.getParameter("questionText");
-        String optionA = request.getParameter("optionA");
-        String optionB = request.getParameter("optionB");
-        String optionC = request.getParameter("optionC");
-        String optionD = request.getParameter("optionD");
-        String correctOption = request.getParameter("correctOption");
-
-        QuestionDTO question = new QuestionDTO(questionId, 0, questionText, optionA, optionB, optionC, optionD, correctOption, "");
-        QuestionDAO.updateQuestion(question);
-        return "MainController?action=listQuestions";
+    private int calculateScore(HttpServletRequest request, List<QuestionDTO> questionList, int totalMarks) {
+        int correctAnswers = 0;
+        for (QuestionDTO question : questionList) {
+            String userAnswer = request.getParameter("answer_" + question.getQuestionId());
+            if (userAnswer != null && userAnswer.equals(question.getCorrectOption())) {
+                correctAnswers++;
+            }
+        }
+        return (int) ((correctAnswers / (double) questionList.size()) * totalMarks);
     }
+    
+    private String processAddQuestion(HttpServletRequest request) {
+        try {
+            HttpSession session = request.getSession();
+            UserDTO user = (UserDTO) session.getAttribute("USER");
+            if (user == null || !"Instructor".equals(user.getRole())) {
+                return LOGIN;
+            }
 
-    private String processDeleteQuestion(HttpServletRequest request) throws SQLException, ClassNotFoundException {
-        int questionId = Integer.parseInt(request.getParameter("questionId"));
-        QuestionDAO.deleteQuestion(questionId);
-        return "MainController?action=listQuestions";
+            ExamDAO examDAO = new ExamDAO();
+            List<ExamDTO> examList = examDAO.getAllExams();
+            request.setAttribute("EXAM_LIST", examList);
+
+            String examIdStr = request.getParameter("examId");
+            String questionText = request.getParameter("questionText");
+            String optionA = request.getParameter("optionA");
+            String optionB = request.getParameter("optionB");
+            String optionC = request.getParameter("optionC");
+            String optionD = request.getParameter("optionD");
+            String correctOption = request.getParameter("correctOption");
+
+            if (examIdStr != null && questionText != null) {
+                int examId = Integer.parseInt(examIdStr);
+                QuestionDTO question = new QuestionDTO(0, examId, questionText, optionA, optionB, optionC, optionD, correctOption, user.getUsername());
+                QuestionDAO questionDAO = new QuestionDAO();
+                boolean result = questionDAO.addQuestion(question);
+
+                if (result) {
+                    request.setAttribute("MESSAGE", "Add question successfully!");
+                } else {
+                    request.setAttribute("ERROR_MESSAGE", "Failed to add question.");
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            request.setAttribute("ERROR_MESSAGE", "Error: " + e.getMessage());
+        }
+        return ADD_QUESTION;
     }
 
     // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">

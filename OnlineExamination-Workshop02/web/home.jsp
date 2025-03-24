@@ -4,12 +4,6 @@
     Author     : huuduy
 --%>
 
-<%-- 
-    Document   : home
-    Created on : Mar 15, 2025, 1:44:15 PM
-    Author     : huuduy
---%>
-
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="dto.UserDTO" %>
 <%@page import="javax.servlet.http.HttpSession" %>
